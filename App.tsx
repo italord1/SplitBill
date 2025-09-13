@@ -1,0 +1,280 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Image,
+  I18nManager,
+} from 'react-native';
+import { launchCamera } from 'react-native-image-picker';
+
+import TextRecognition from '@react-native-ml-kit/text-recognition';
+
+// Force RTL layout
+I18nManager.forceRTL(true);
+I18nManager.allowRTL(true);
+
+interface Dish {
+  name: string;
+  price: number;
+  selectedGuests: string[];
+}
+
+export default function App() {
+  const [guestsInput, setGuestsInput] = useState('');
+  const [guests, setGuests] = useState<string[]>([]);
+  const [dishes, setDishes] = useState<Dish[]>([]);
+  const [tipPercent, setTipPercent] = useState<number>(0);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [totals, setTotals] = useState<{ [guest: string]: number }>({});
+
+  const addGuests = () => {
+    const names = guestsInput.split(',').map(n => n.trim()).filter(n => n.length > 0);
+    setGuests(names);
+    setGuestsInput('');
+  };
+
+  const pickImageAndRecognize = async () => {
+    const result = await launchCamera({
+      mediaType: 'photo',
+      cameraType: 'back',
+      quality: 0.5,
+    });
+
+    if (result.assets && result.assets.length > 0) {
+      const uri = result.assets[0].uri ?? null;
+      setImageUri(uri);
+
+      if (uri) {
+        try {
+          const ocrResult = await TextRecognition.recognize(uri);
+          console.log(ocrResult.text)
+          parseDishesFromText(ocrResult.text);
+        } catch (err) {
+          console.log('OCR error:', err);
+        }
+      }
+    }
+  };
+
+
+
+
+  const addDish = () => setDishes([...dishes, { name: '', price: 0, selectedGuests: [] }]);
+
+  const calculateTotals = () => {
+    const tempTotals: { [guest: string]: number } = {};
+    guests.forEach(g => (tempTotals[g] = 0));
+
+    dishes.forEach(d => {
+      if (d.selectedGuests.length === 0) return;
+      const share = (d.price * (1 + tipPercent / 100)) / d.selectedGuests.length;
+      d.selectedGuests.forEach(g => {
+        tempTotals[g] += share;
+      });
+    });
+
+    setTotals(tempTotals);
+  };
+
+  const toggleGuestForDish = (dishIndex: number, guest: string) => {
+    const newDishes = [...dishes];
+    const selected = newDishes[dishIndex].selectedGuests;
+    if (selected.includes(guest)) {
+      newDishes[dishIndex].selectedGuests = selected.filter(g => g !== guest);
+    } else {
+      newDishes[dishIndex].selectedGuests.push(guest);
+    }
+    setDishes(newDishes);
+  };
+
+  const parseDishesFromText = (recognizedText: string) => {
+    const lines = recognizedText.split('\n');
+    const newDishes: Dish[] = [];
+
+    lines.forEach(line => {
+
+      const match = line.match(/(.+?)\s+(\d+(?:\.\d+)?)/);
+      if (match) {
+        const name = match[1].trim();
+        const price = parseFloat(match[2]);
+        newDishes.push({ name, price, selectedGuests: [] });
+      }
+    });
+
+    setDishes(prev => [...prev, ...newDishes]);
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={styles.title}>SplitBill 🍽️</Text>
+
+      {/* Guests */}
+      <Text style={styles.label}>הכנס שמות סועדים (מופרדים בפסיקים):</Text>
+      <TextInput
+        value={guestsInput}
+        onChangeText={setGuestsInput}
+        placeholder="לדוגמה: איתי, דני, מיכל"
+        style={styles.input}
+        textAlignVertical="top"
+      />
+      <TouchableOpacity style={styles.primaryBtn} onPress={addGuests}>
+        <Text style={styles.btnText}>הוסף סועדים</Text>
+      </TouchableOpacity>
+
+      {guests.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.label}>סועדים:</Text>
+          <Text style={styles.rtlText}>{guests.join(', ')}</Text>
+        </View>
+      )}
+
+      {/* Capture Receipt */}
+      <TouchableOpacity style={styles.secondaryBtn} onPress={pickImageAndRecognize}>
+        <Text style={styles.btnText}>📸 צלם חשבונית</Text>
+      </TouchableOpacity>
+      {imageUri && <Image source={{ uri: imageUri }} style={styles.imagePreview} />}
+
+      {/* Tip */}
+      <Text style={styles.label}>טיפ (%):</Text>
+      <TextInput
+        keyboardType="numeric"
+        value={tipPercent.toString()}
+        onChangeText={text => setTipPercent(Number(text))}
+        style={styles.input}
+      />
+
+      {/* Dishes */}
+      <Text style={[styles.label, { marginTop: 15 }]}>מנות:</Text>
+      {dishes.map((dish, index) => (
+        <View key={index} style={styles.dishContainer}>
+          <TextInput
+            placeholder="שם מנה"
+            value={dish.name}
+            onChangeText={text => {
+              const newDishes = [...dishes];
+              newDishes[index].name = text;
+              setDishes(newDishes);
+            }}
+            style={styles.input}
+          />
+          <TextInput
+            placeholder="מחיר"
+            keyboardType="numeric"
+            value={dish.price.toString()}
+            onChangeText={text => {
+              const newDishes = [...dishes];
+              newDishes[index].price = Number(text);
+              setDishes(newDishes);
+            }}
+            style={styles.input}
+          />
+
+          <Text style={styles.label}>מי אכל את המנה?</Text>
+          <View style={styles.guestsRow}>
+            {guests.map(g => (
+              <TouchableOpacity
+                key={g}
+                style={[
+                  styles.guestBtn,
+                  dish.selectedGuests.includes(g) && { backgroundColor: '#4caf50' },
+                ]}
+                onPress={() => toggleGuestForDish(index, g)}
+              >
+                <Text style={{ color: dish.selectedGuests.includes(g) ? 'white' : 'black', writingDirection: 'rtl' }}>{g}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ))}
+
+      <TouchableOpacity style={styles.floatingBtn} onPress={addDish}>
+        <Text style={styles.btnText}>➕ הוסף מנה</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.primaryBtn, { marginTop: 20 }]} onPress={calculateTotals}>
+        <Text style={styles.btnText}>חשב תשלום לכל סועד</Text>
+      </TouchableOpacity>
+
+      {/* Totals */}
+      {Object.keys(totals).length > 0 && (
+        <View style={[styles.section, { marginTop: 20 }]}>
+          <Text style={[styles.label, { fontSize: 18 }]}>סיכום:</Text>
+          {Object.entries(totals).map(([g, total]) => (
+            <Text key={g} style={[styles.totalText, { writingDirection: 'rtl' }]}>
+              {g}: ₪{total.toFixed(2)}
+            </Text>
+          ))}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 15, backgroundColor: '#fdfdfd', direction: 'rtl' },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#333' },
+  label: { fontWeight: '600', marginVertical: 5, color: '#555', writingDirection: 'rtl' },
+  rtlText: { writingDirection: 'rtl', textAlign: 'right' },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    marginVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  primaryBtn: {
+    backgroundColor: '#2196f3',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 5,
+  },
+  secondaryBtn: {
+    backgroundColor: '#ff9800',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 5,
+  },
+  btnText: { color: 'white', fontWeight: 'bold', writingDirection: 'rtl' },
+  section: { paddingVertical: 10, borderBottomWidth: 1, borderColor: '#eee' },
+  dishContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    direction: 'rtl',
+  },
+  guestsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 },
+  guestBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#888',
+    borderRadius: 20,
+    margin: 3,
+  },
+  floatingBtn: {
+    backgroundColor: '#4caf50',
+    padding: 15,
+    borderRadius: 50,
+    alignItems: 'center',
+    marginVertical: 15,
+    alignSelf: 'center',
+    minWidth: 150,
+  },
+  totalText: { fontSize: 16, marginVertical: 2, color: '#333', writingDirection: 'rtl' },
+  imagePreview: { width: '100%', height: 200, marginVertical: 10, borderRadius: 10 },
+});
