@@ -37,6 +37,8 @@ export default function App() {
     setGuestsInput('');
   };
 
+
+
   const pickImageAndRecognize = async () => {
     const result = await launchCamera({
       mediaType: 'photo',
@@ -64,6 +66,12 @@ export default function App() {
 
 
   const addDish = () => setDishes([...dishes, { name: '', price: 0, selectedGuests: [] }]);
+
+  const removeDish = (index: number) => {
+    const newDishes = [...dishes];
+    newDishes.splice(index, 1);
+    setDishes(newDishes);
+  };
 
   const calculateTotals = () => {
     const tempTotals: { [guest: string]: number } = {};
@@ -97,11 +105,18 @@ export default function App() {
 
     lines.forEach(line => {
 
-      const match = line.match(/(.+?)\s+(\d+(?:\.\d+)?)/);
+      let cleanLine = line.replace(/[^\u0590-\u05FFa-zA-Z0-9\s.,₪]/g, "").trim();
+
+      
+      const match = cleanLine.match(/(.+?)\s+(\d+(?:[\.,]\d{1,2})?)(?:\s*₪|ש"ח)?$/);
+
       if (match) {
         const name = match[1].trim();
-        const price = parseFloat(match[2]);
-        newDishes.push({ name, price, selectedGuests: [] });
+        const price = parseFloat(match[2].replace(",", "."));
+
+        if (name.length > 1 && price > 5 && price < 1000) {
+          newDishes.push({ name, price, selectedGuests: [] });
+        }
       }
     });
 
@@ -151,10 +166,19 @@ export default function App() {
       <Text style={[styles.label, { marginTop: 15 }]}>מנות:</Text>
       {dishes.map((dish, index) => (
         <View key={index} style={styles.dishContainer}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ fontWeight: '600', color: '#333' }}>
+              מנה {index + 1}
+            </Text>
+            <TouchableOpacity onPress={() => removeDish(index)}>
+              <Text style={{ color: 'red', fontWeight: 'bold' }}>❌ הסר</Text>
+            </TouchableOpacity>
+          </View>
+
           <TextInput
             placeholder="שם מנה"
             value={dish.name}
-            onChangeText={text => {
+            onChangeText={(text) => {
               const newDishes = [...dishes];
               newDishes[index].name = text;
               setDishes(newDishes);
@@ -165,7 +189,7 @@ export default function App() {
             placeholder="מחיר"
             keyboardType="numeric"
             value={dish.price.toString()}
-            onChangeText={text => {
+            onChangeText={(text) => {
               const newDishes = [...dishes];
               newDishes[index].price = Number(text);
               setDishes(newDishes);
@@ -175,7 +199,7 @@ export default function App() {
 
           <Text style={styles.label}>מי אכל את המנה?</Text>
           <View style={styles.guestsRow}>
-            {guests.map(g => (
+            {guests.map((g) => (
               <TouchableOpacity
                 key={g}
                 style={[
@@ -184,7 +208,14 @@ export default function App() {
                 ]}
                 onPress={() => toggleGuestForDish(index, g)}
               >
-                <Text style={{ color: dish.selectedGuests.includes(g) ? 'white' : 'black', writingDirection: 'rtl' }}>{g}</Text>
+                <Text
+                  style={{
+                    color: dish.selectedGuests.includes(g) ? 'white' : 'black',
+                    writingDirection: 'rtl',
+                  }}
+                >
+                  {g}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
