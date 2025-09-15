@@ -10,9 +10,10 @@ import {
   I18nManager,
 } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
+import dishesList from './Dishes.json';
 
 
-
+const dishDictionary: string[] = dishesList as string[];
 
 // Force RTL layout
 I18nManager.forceRTL(true);
@@ -104,40 +105,56 @@ export default function App() {
     setDishes(parseReceiptDishes(data.text));
   };
 
-  const parseReceiptDishes = (ocrText: string): Dish[] => {
-    const lines = ocrText.split('\n');
+
+
+
+  function isValidDish(name: string, price: number): boolean {
+    if (price < 10 || price > 1000) return false;
+
+    const words = name.split(/\s+/);
+    if (words.length < 1 || words.length > 3) return false;
+
+
+    return words.every(w =>
+      dishDictionary.some(dictWord =>
+        w.includes(dictWord) || dictWord.includes(w)
+      )
+    );
+  }
+
+  const parseReceiptDishes = (ocrLines: string[]): Dish[] => {
     const dishes: Dish[] = [];
+    console.log(ocrLines)
+    for (let rawLine of ocrLines) {
+      if (!rawLine) continue;
 
-    const ignorePatterns = [/סה״כ/, /מספר הזמנה/, /תאריך/, /שעת/, /נוטר/]; // דוגמאות למה להתעלם
+      // Minimal cleanup: remove invisible characters
+      let line = rawLine.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
 
-    lines.forEach(line => {
-      line = line.trim();
-      if (!line) return; 
+      // Ignore irrelevant lines
+      const ignorePatterns = [
+        /סה״כ/, /סך הכל/, /מספר הזמנה/, /תאריך/, /שעת/, /נותר/,
+        /TOTAL/i, /מחיר/, /הנחה/, /שונה/
+      ];
+      if (ignorePatterns.some(pattern => pattern.test(line))) continue;
 
-      
-      if (ignorePatterns.some(pattern => pattern.test(line))) return;
+      // Extract price (supports ₪ or ש"ח)
+      const priceMatch = line.match(/(\d+[.,]?\d*)\s*(₪|ש"ח)/);
+      if (!priceMatch) continue;
 
-      
-      const match = line.match(/(\d+(?:\.\d+)?)\s*₪$/);
-      if (!match) return;
+      let price = Number(priceMatch[1].replace(',', '.'));
 
-      const price = Number(match[1]);
-      if (price <= 0) return;
-
-      
-      let name = line.replace(match[0], '').trim();
-      name = name.replace(/^[^\p{L}\d]+|[^\p{L}\d]+$/gu, '');
-
-      if (!name) name = 'מנה';
+      // Extract dish name by removing the price
+      let name = line.replace(priceMatch[0], '').trim();
+      if (!name) name = 'Unknown Dish';
 
       dishes.push({ name, price, selectedGuests: [] });
-    });
+    }
 
-    console.log('Parsed Dishes:', dishes);
+    console.log(dishes)
+
     return dishes;
   };
-
-
 
 
   return (
