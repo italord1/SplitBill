@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
 
-import MLKit from 'react-native-mlkit-ocr';
+
+
 
 // Force RTL layout
 I18nManager.forceRTL(true);
@@ -38,40 +39,6 @@ export default function App() {
     const names = guestsInput.split(',').map(n => n.trim()).filter(n => n.length > 0);
     setGuests(names);
     setGuestsInput('');
-  };
-
-
-
-  const captureAndRecognize = async () => {
-    const result = await launchCamera({
-      mediaType: 'photo',
-      cameraType: 'back',
-      quality: 0.7,
-    });
-
-    if (result.assets && result.assets.length > 0) {
-      const uri = result.assets[0].uri ?? null;
-      setImageUri(uri);
-
-      if (uri) {
-        await recognizeText(uri);
-      }
-    }
-  };
-
-  const recognizeText = async (uri: string) => {
-    try {
-      const result = await MLKit.detectFromUri(uri);
-
-      const fullText = result.map(block => block.text).join("\n");
-
-      console.log("Recognized text:\n", fullText);
-
-      
-      parseDishesFromText(fullText);
-    } catch (err) {
-      console.error("OCR error:", err);
-    }
   };
 
 
@@ -112,29 +79,66 @@ export default function App() {
     setDishes(newDishes);
   };
 
-  const parseDishesFromText = (recognizedText: string) => {
-    const lines = recognizedText.split('\n');
-    const newDishes: Dish[] = [];
 
-    lines.forEach(line => {
+  const captureAndSend = async () => {
+    const result = await launchCamera({ mediaType: 'photo', quality: 0.7 });
+    if (!result.assets || result.assets.length === 0) return;
+    const uri = result.assets[0].uri;
+    setImageUri(uri ?? null);
 
-      let cleanLine = line.replace(/[^\u0590-\u05FFa-zA-Z0-9\s.,₪]/g, "").trim();
-
-
-      const match = cleanLine.match(/(.+?)\s+(\d+(?:[\.,]\d{1,2})?)(?:\s*₪|ש"ח)?$/);
-
-      if (match) {
-        const name = match[1].trim();
-        const price = parseFloat(match[2].replace(",", "."));
-
-        if (name.length > 1 && price > 5 && price < 1000) {
-          newDishes.push({ name, price, selectedGuests: [] });
-        }
-      }
+    const formData = new FormData();
+    formData.append('image', {
+      uri,
+      type: 'image/jpeg',
+      name: 'receipt.jpg',
     });
 
-    setDishes(prev => [...prev, ...newDishes]);
+    const response = await fetch('http://192.168.1.36:3000/upload', {
+      method: 'POST',
+      body: formData,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+
+    const data = await response.json();
+
+    setDishes(parseReceiptDishes(data.text));
   };
+
+  const parseReceiptDishes = (ocrText: string): Dish[] => {
+    const lines = ocrText.split('\n');
+    const dishes: Dish[] = [];
+
+    const ignorePatterns = [/סה״כ/, /מספר הזמנה/, /תאריך/, /שעת/, /נוטר/]; // דוגמאות למה להתעלם
+
+    lines.forEach(line => {
+      line = line.trim();
+      if (!line) return; 
+
+      
+      if (ignorePatterns.some(pattern => pattern.test(line))) return;
+
+      
+      const match = line.match(/(\d+(?:\.\d+)?)\s*₪$/);
+      if (!match) return;
+
+      const price = Number(match[1]);
+      if (price <= 0) return;
+
+      
+      let name = line.replace(match[0], '').trim();
+      name = name.replace(/^[^\p{L}\d]+|[^\p{L}\d]+$/gu, '');
+
+      if (!name) name = 'מנה';
+
+      dishes.push({ name, price, selectedGuests: [] });
+    });
+
+    console.log('Parsed Dishes:', dishes);
+    return dishes;
+  };
+
+
+
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -161,7 +165,7 @@ export default function App() {
       )}
 
       {/* Capture Receipt */}
-      <TouchableOpacity style={styles.secondaryBtn} onPress={captureAndRecognize}>
+      <TouchableOpacity style={styles.secondaryBtn} onPress={captureAndSend} >
         <Text style={styles.btnText}>📸 צלם חשבונית</Text>
       </TouchableOpacity>
       {imageUri && <Image source={{ uri: imageUri }} style={styles.imagePreview} />}
@@ -201,10 +205,10 @@ export default function App() {
           <TextInput
             placeholder="מחיר"
             keyboardType="numeric"
-            value={dish.price.toString()}
+            value={dish.price != null ? dish.price.toString() : ''}
             onChangeText={(text) => {
               const newDishes = [...dishes];
-              newDishes[index].price = Number(text);
+              newDishes[index].price = text ? Number(text) : 0;
               setDishes(newDishes);
             }}
             style={styles.input}
