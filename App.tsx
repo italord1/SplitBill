@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
 
-import TextRecognition from '@react-native-ml-kit/text-recognition';
+import MLKit from 'react-native-mlkit-ocr';
 
 // Force RTL layout
 I18nManager.forceRTL(true);
@@ -29,7 +29,10 @@ export default function App() {
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [tipPercent, setTipPercent] = useState<number>(0);
   const [imageUri, setImageUri] = useState<string | null>(null);
-  const [totals, setTotals] = useState<{ [guest: string]: number }>({});
+
+  const [totals, setTotals] = useState<
+    { [guest: string]: { subtotal: number; total: number } }
+  >({});
 
   const addGuests = () => {
     const names = guestsInput.split(',').map(n => n.trim()).filter(n => n.length > 0);
@@ -39,11 +42,11 @@ export default function App() {
 
 
 
-  const pickImageAndRecognize = async () => {
+  const captureAndRecognize = async () => {
     const result = await launchCamera({
       mediaType: 'photo',
       cameraType: 'back',
-      quality: 0.5,
+      quality: 0.7,
     });
 
     if (result.assets && result.assets.length > 0) {
@@ -51,18 +54,25 @@ export default function App() {
       setImageUri(uri);
 
       if (uri) {
-        try {
-          const ocrResult = await TextRecognition.recognize(uri);
-          console.log(ocrResult.text)
-          parseDishesFromText(ocrResult.text);
-        } catch (err) {
-          console.log('OCR error:', err);
-        }
+        await recognizeText(uri);
       }
     }
   };
 
+  const recognizeText = async (uri: string) => {
+    try {
+      const result = await MLKit.detectFromUri(uri);
 
+      const fullText = result.map(block => block.text).join("\n");
+
+      console.log("Recognized text:\n", fullText);
+
+      
+      parseDishesFromText(fullText);
+    } catch (err) {
+      console.error("OCR error:", err);
+    }
+  };
 
 
   const addDish = () => setDishes([...dishes, { name: '', price: 0, selectedGuests: [] }]);
@@ -74,14 +84,17 @@ export default function App() {
   };
 
   const calculateTotals = () => {
-    const tempTotals: { [guest: string]: number } = {};
-    guests.forEach(g => (tempTotals[g] = 0));
+    const tempTotals: { [guest: string]: { subtotal: number; total: number } } = {};
+    guests.forEach(g => (tempTotals[g] = { subtotal: 0, total: 0 }));
 
     dishes.forEach(d => {
       if (d.selectedGuests.length === 0) return;
-      const share = (d.price * (1 + tipPercent / 100)) / d.selectedGuests.length;
+      const shareWithoutTip = d.price / d.selectedGuests.length;
+      const shareWithTip = (d.price * (1 + tipPercent / 100)) / d.selectedGuests.length;
+
       d.selectedGuests.forEach(g => {
-        tempTotals[g] += share;
+        tempTotals[g].subtotal += shareWithoutTip;
+        tempTotals[g].total += shareWithTip;
       });
     });
 
@@ -107,7 +120,7 @@ export default function App() {
 
       let cleanLine = line.replace(/[^\u0590-\u05FFa-zA-Z0-9\s.,₪]/g, "").trim();
 
-      
+
       const match = cleanLine.match(/(.+?)\s+(\d+(?:[\.,]\d{1,2})?)(?:\s*₪|ש"ח)?$/);
 
       if (match) {
@@ -148,7 +161,7 @@ export default function App() {
       )}
 
       {/* Capture Receipt */}
-      <TouchableOpacity style={styles.secondaryBtn} onPress={pickImageAndRecognize}>
+      <TouchableOpacity style={styles.secondaryBtn} onPress={captureAndRecognize}>
         <Text style={styles.btnText}>📸 צלם חשבונית</Text>
       </TouchableOpacity>
       {imageUri && <Image source={{ uri: imageUri }} style={styles.imagePreview} />}
@@ -233,12 +246,34 @@ export default function App() {
       {/* Totals */}
       {Object.keys(totals).length > 0 && (
         <View style={[styles.section, { marginTop: 20 }]}>
-          <Text style={[styles.label, { fontSize: 18 }]}>סיכום:</Text>
-          {Object.entries(totals).map(([g, total]) => (
-            <Text key={g} style={[styles.totalText, { writingDirection: 'rtl' }]}>
-              {g}: ₪{total.toFixed(2)}
-            </Text>
+          <Text style={[styles.label, { fontSize: 20, textAlign: 'center', marginBottom: 10 }]}>
+            💰 סיכום החשבון
+          </Text>
+
+          {Object.entries(totals).map(([g, { subtotal, total }]) => (
+            <View key={g} style={styles.totalCard}>
+              <Text style={styles.totalName}>{g}</Text>
+              <Text style={styles.totalLine}>לפני טיפ: ₪{subtotal.toFixed(2)}</Text>
+              <Text style={styles.totalLine}>אחרי טיפ: ₪{total.toFixed(2)}</Text>
+            </View>
           ))}
+
+          {/* סיכום כללי */}
+          <View style={[styles.totalCard, { backgroundColor: '#e3f2fd', marginTop: 15 }]}>
+            <Text style={[styles.totalName, { color: '#0d47a1' }]}>סה״כ ארוחה</Text>
+            <Text style={styles.totalLine}>
+              לפני טיפ: ₪
+              {Object.values(totals)
+                .reduce((sum, t) => sum + t.subtotal, 0)
+                .toFixed(2)}
+            </Text>
+            <Text style={styles.totalLine}>
+              אחרי טיפ: ₪
+              {Object.values(totals)
+                .reduce((sum, t) => sum + t.total, 0)
+                .toFixed(2)}
+            </Text>
+          </View>
         </View>
       )}
     </ScrollView>
@@ -308,4 +343,28 @@ const styles = StyleSheet.create({
   },
   totalText: { fontSize: 16, marginVertical: 2, color: '#333', writingDirection: 'rtl' },
   imagePreview: { width: '100%', height: 200, marginVertical: 10, borderRadius: 10 },
+  totalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  totalName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+    writingDirection: 'rtl',
+  },
+  totalLine: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 2,
+    writingDirection: 'rtl',
+  },
 });
