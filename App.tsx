@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Image,
-  I18nManager,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image, I18nManager, } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
 import dishesList from './Dishes.json';
 
@@ -21,7 +12,7 @@ I18nManager.allowRTL(true);
 
 interface Dish {
   name: string;
-  price: number;
+  price: number ;
   selectedGuests: string[];
 }
 
@@ -102,59 +93,54 @@ export default function App() {
 
     const data = await response.json();
 
-    setDishes(parseReceiptDishes(data.text));
+    // Split into lines for parsing
+    const ocrLines = data.text.split('\n');
+
+    console.log(ocrLines)
+    setDishes(parseReceiptDishes(ocrLines));
   };
 
-
-
-
-  function isValidDish(name: string, price: number): boolean {
-    if (price < 10 || price > 1000) return false;
-
-    const words = name.split(/\s+/);
-    if (words.length < 1 || words.length > 3) return false;
-
-
-    return words.every(w =>
-      dishDictionary.some(dictWord =>
-        w.includes(dictWord) || dictWord.includes(w)
-      )
-    );
-  }
-
-  const parseReceiptDishes = (ocrLines: string[]): Dish[] => {
+  const parseReceiptDishes = (ocrText: string): Dish[] => {
     const dishes: Dish[] = [];
-    console.log(ocrLines)
-    for (let rawLine of ocrLines) {
+
+    for (let rawLine of ocrText) {
       if (!rawLine) continue;
 
-      // Minimal cleanup: remove invisible characters
-      let line = rawLine.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+      if (/[א-ת]/.test(rawLine)) {
+       
+        const priceMatches = rawLine.match(/\d+/g);
 
-      // Ignore irrelevant lines
-      const ignorePatterns = [
-        /סה״כ/, /סך הכל/, /מספר הזמנה/, /תאריך/, /שעת/, /נותר/,
-        /TOTAL/i, /מחיר/, /הנחה/, /שונה/
-      ];
-      if (ignorePatterns.some(pattern => pattern.test(line))) continue;
+        let price = 0;
+        if (priceMatches) {
+        
+          const nums = priceMatches
+            .map(n => parseInt(n, 10))
+            .filter(n => n > 0);
 
-      // Extract price (supports ₪ or ש"ח)
-      const priceMatch = line.match(/(\d+[.,]?\d*)\s*(₪|ש"ח)/);
-      if (!priceMatch) continue;
+          if (nums.length > 0) {
+           
+            price = Math.max(...nums);
+          }
+        }
 
-      let price = Number(priceMatch[1].replace(',', '.'));
+      
+        let name = rawLine.replace(/\d+/g, "").replace(/[₪]/g, "").trim();
 
-      // Extract dish name by removing the price
-      let name = line.replace(priceMatch[0], '').trim();
-      if (!name) name = 'Unknown Dish';
 
-      dishes.push({ name, price, selectedGuests: [] });
+        if (name.length > 2) {
+          dishes.push({
+            name,
+            price,
+            selectedGuests: []
+          });
+        }
+      }
     }
-
     console.log(dishes)
-
     return dishes;
   };
+
+
 
 
   return (
