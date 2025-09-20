@@ -97,48 +97,31 @@ export default function App() {
     const ocrLines = data.text.split('\n');
 
     console.log(ocrLines)
-    setDishes(parseReceiptDishes(ocrLines));
+    setDishes(parseReceiptDishes(ocrLines,dishDictionary));
   };
 
-  const parseReceiptDishes = (ocrText: string): Dish[] => {
-    const dishes: Dish[] = [];
+  const parseReceiptDishes = (ocrText: string[], dishesJson: string[]): Dish[] => {
+  const dishes: Dish[] = [];
 
-    for (let rawLine of ocrText) {
-      if (!rawLine) continue;
+  for (let line of ocrText) {
+    if (!line) continue;
 
-      if (/[א-ת]/.test(rawLine)) {
-       
-        const priceMatches = rawLine.match(/\d+/g);
+    
+    const foundDish = dishesJson.find(dish => line.includes(dish));
+    if (foundDish) {
+      const priceMatch = line.match(/(\d+)\s*₪?$/);
+      const price = priceMatch ? parseInt(priceMatch[1], 10) : 0;
 
-        let price = 0;
-        if (priceMatches) {
-        
-          const nums = priceMatches
-            .map(n => parseInt(n, 10))
-            .filter(n => n > 0);
-
-          if (nums.length > 0) {
-           
-            price = Math.max(...nums);
-          }
-        }
-
-      
-        let name = rawLine.replace(/\d+/g, "").replace(/[₪]/g, "").trim();
-
-
-        if (name.length > 2) {
-          dishes.push({
-            name,
-            price,
-            selectedGuests: []
-          });
-        }
-      }
+      dishes.push({
+        name: foundDish,
+        price,
+        selectedGuests: []
+      });
     }
-    console.log(dishes)
-    return dishes;
-  };
+  }
+    console.log(dishes);
+  return dishes;
+};
 
 
 
