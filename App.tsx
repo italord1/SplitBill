@@ -93,13 +93,13 @@ export default function App() {
 
     const data = await response.json();
 
-    const hebLines = data.hebText.split('\n');  // שמות מנות
-    const numLines = data.numText.split('\n');  // מחירים
+    const hebLines = data.hebText.split('\n');
+    const numLines = data.numText.split('\n');
 
     console.log("HEB:", hebLines);
     console.log("NUM:", numLines);
 
-    // אחרי זה אפשר לנסות להתאים בין השורות
+
     setDishes(parseReceiptDishes(hebLines, numLines, dishDictionary));
   };
 
@@ -112,12 +112,15 @@ export default function App() {
 
       const foundDish = dishesJson.find(dish => line.includes(dish));
       if (foundDish) {
-        // מנסה לקחת את המחיר מהשורה המקבילה ב-numLines
+
         let price = 0;
+
+       
         if (i < numLines.length) {
-          const priceMatch = numLines[i].match(/(\d+)\s*₪?/);
-          if (priceMatch) {
-            price = parseInt(priceMatch[1], 10);
+          const matches = numLines[i].match(/\d+/g); 
+          if (matches && matches.length > 0) {
+          
+            price = Math.max(...matches.map(n => parseInt(n, 10)));
           }
         }
 
