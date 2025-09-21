@@ -12,7 +12,7 @@ I18nManager.allowRTL(true);
 
 interface Dish {
   name: string;
-  price: number ;
+  price: number;
   selectedGuests: string[];
 }
 
@@ -93,35 +93,45 @@ export default function App() {
 
     const data = await response.json();
 
-    // Split into lines for parsing
-    const ocrLines = data.text.split('\n');
+    const hebLines = data.hebText.split('\n');  // שמות מנות
+    const numLines = data.numText.split('\n');  // מחירים
 
-    console.log(ocrLines)
-    setDishes(parseReceiptDishes(ocrLines,dishDictionary));
+    console.log("HEB:", hebLines);
+    console.log("NUM:", numLines);
+
+    // אחרי זה אפשר לנסות להתאים בין השורות
+    setDishes(parseReceiptDishes(hebLines, numLines, dishDictionary));
   };
 
-  const parseReceiptDishes = (ocrText: string[], dishesJson: string[]): Dish[] => {
-  const dishes: Dish[] = [];
+  const parseReceiptDishes = (hebLines: string[], numLines: string[], dishesJson: string[]): Dish[] => {
+    const dishes: Dish[] = [];
 
-  for (let line of ocrText) {
-    if (!line) continue;
+    for (let i = 0; i < hebLines.length; i++) {
+      const line = hebLines[i].trim();
+      if (!line) continue;
 
-    
-    const foundDish = dishesJson.find(dish => line.includes(dish));
-    if (foundDish) {
-      const priceMatch = line.match(/(\d+)\s*₪?$/);
-      const price = priceMatch ? parseInt(priceMatch[1], 10) : 0;
+      const foundDish = dishesJson.find(dish => line.includes(dish));
+      if (foundDish) {
+        // מנסה לקחת את המחיר מהשורה המקבילה ב-numLines
+        let price = 0;
+        if (i < numLines.length) {
+          const priceMatch = numLines[i].match(/(\d+)\s*₪?/);
+          if (priceMatch) {
+            price = parseInt(priceMatch[1], 10);
+          }
+        }
 
-      dishes.push({
-        name: foundDish,
-        price,
-        selectedGuests: []
-      });
+        dishes.push({
+          name: foundDish,
+          price,
+          selectedGuests: []
+        });
+      }
     }
-  }
+
     console.log(dishes);
-  return dishes;
-};
+    return dishes;
+  };
 
 
 

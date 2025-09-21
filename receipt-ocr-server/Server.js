@@ -12,14 +12,21 @@ app.post('/upload', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).send({ error: 'No file uploaded' });
 
-    const { data: { text } } = await Tesseract.recognize(
+    // OCR לטקסט בעברית (שמות מנות)
+    const { data: { text: hebText } } = await Tesseract.recognize(
       req.file.path,
       'heb',
-      { logger: m => console.log(m) }
+      { logger: m => console.log('HEB:', m) }
     );
 
-    // Server just returns the raw OCR text
-    res.json({ text });
+    // OCR למספרים (מחירים) באנגלית
+    const { data: { text: numText } } = await Tesseract.recognize(
+      req.file.path,
+      'eng',
+      { logger: m => console.log('NUM:', m) }
+    );
+
+    res.json({ hebText, numText });
   } catch (err) {
     console.error(err);
     res.status(500).send({ error: 'OCR failed' });
