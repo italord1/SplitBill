@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image, I18nManager, } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
 import dishesList from './Dishes.json';
-
+import PhotoManipulator from 'react-native-photo-manipulator';
 
 const dishDictionary: string[] = dishesList as string[];
 
