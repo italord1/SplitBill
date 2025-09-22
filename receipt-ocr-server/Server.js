@@ -16,8 +16,12 @@ app.post('/upload', upload.single('image'), async (req, res) => {
   try {
     const filePath = req.file.path;
 
-    
-    const { data: { text } } = await tesseract.recognize(filePath, 'heb+eng');
+
+    const { data: { text } } = await tesseract.recognize(filePath, 'heb+eng', {
+      tessedit_char_whitelist: '0123456789אבגדהוזחטיכלמנסעפצקרשת', 
+      oem: 1, 
+      psm: 6  
+    });
 
     await fs.unlink(filePath);
 
@@ -25,7 +29,7 @@ app.post('/upload', upload.single('image'), async (req, res) => {
   } catch (err) {
     console.error(err);
     if (req.file) {
-      try { await fs.unlink(req.file.path); } catch (_) {}
+      try { await fs.unlink(req.file.path); } catch (_) { }
     }
     res.status(500).send({ error: 'OCR failed' });
   }
