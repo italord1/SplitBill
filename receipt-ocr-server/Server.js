@@ -11,9 +11,7 @@ app.use(cors());
 const upload = multer({ dest: 'uploads/' });
 
 
-const ocrWorker = createWorker({
-  logger: m => console.log(m) 
-});
+const ocrWorker = createWorker();
 
 app.post('/upload', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send({ error: 'No file uploaded' });
