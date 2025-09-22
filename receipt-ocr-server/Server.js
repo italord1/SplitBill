@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { createWorker } = require('tesseract.js');
+const tesseract = require('tesseract.js');
 const cors = require('cors');
 const fs = require('fs').promises;
 
@@ -10,9 +10,6 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 const upload = multer({ dest: 'uploads/' });
 
-
-const ocrWorker = createWorker();
-
 app.post('/upload', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send({ error: 'No file uploaded' });
 
@@ -20,7 +17,7 @@ app.post('/upload', upload.single('image'), async (req, res) => {
     const filePath = req.file.path;
 
     
-    const { data: { text } } = await ocrWorker.recognize(filePath, 'heb+eng');
+    const { data: { text } } = await tesseract.recognize(filePath, 'heb+eng');
 
     await fs.unlink(filePath);
 
