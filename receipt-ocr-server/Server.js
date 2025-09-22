@@ -14,13 +14,13 @@ let worker;
 
 
 (async () => {
-  worker = createWorker({
-    logger: m => console.log(m), 
+  const worker = createWorker({
+    logger: m => console.log(m),
   });
-  await worker.load();
-  await worker.loadLanguage('heb+eng');
-  await worker.initialize('heb+eng');
-  console.log('Worker loaded');
+
+  await worker.loadLanguage('heb+eng');  
+  await worker.initialize('heb+eng');   
+  console.log('Worker ready');
 })();
 
 
