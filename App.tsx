@@ -35,6 +35,15 @@ export default function App() {
     setGuestsInput('');
   };
 
+  const resetAll = () => {
+    setGuestsInput('');
+    setGuests([]);
+    setDishes([]);
+    setTipPercent(0);
+    setImageUri(null);
+    setTotals({});
+  };
+
 
   const addDish = () => setDishes([...dishes, { name: '', price: 0, selectedGuests: [] }]);
 
@@ -97,7 +106,7 @@ export default function App() {
 
       const data = await response.json();
 
-     
+
       const allLines: string[] = data.text.split('\n').map((line: string) => line.trim()).filter((line: string) => line.length > 0);
 
       console.log("ALL LINES:", allLines);
@@ -118,7 +127,7 @@ export default function App() {
     for (let line of lines) {
       const foundDish = dishesJson.find(dish => line.includes(dish));
       if (foundDish) {
-        
+
         let price = 0;
         const matches = line.match(/\d+/g);
         if (matches && matches.length > 0) {
@@ -179,7 +188,15 @@ export default function App() {
         onChangeText={text => setTipPercent(Number(text))}
         style={styles.input}
       />
-      {loading && <ActivityIndicator size="large" color="#0000ff" />}
+      {loading && (
+        <View style={{ alignItems: 'center', marginVertical: 10 }}>
+          <ActivityIndicator size="large" color="#0000ff" />
+          <Text style={{ marginTop: 10, color: '#555', fontStyle: 'italic', textAlign: 'center' }}>
+            יכול לקחת זמן... אנא המתינו בסבלנות 🙏
+            הכל פה בחינם אז מתקמצנים על משאבים 😅
+          </Text>
+        </View>
+      )}
 
       {/* Dishes */}
       <Text style={[styles.label, { marginTop: 15 }]}>מנות:</Text>
@@ -193,7 +210,7 @@ export default function App() {
               <Text style={{ color: 'red', fontWeight: 'bold' }}>❌ הסר</Text>
             </TouchableOpacity>
           </View>
-
+     
           <TextInput
             placeholder="שם מנה"
             value={dish.name}
@@ -215,6 +232,7 @@ export default function App() {
             }}
             style={styles.input}
           />
+          
 
           <Text style={styles.label}>מי אכל את המנה?</Text>
           <View style={styles.guestsRow}>
@@ -239,7 +257,21 @@ export default function App() {
             ))}
           </View>
         </View>
+        
       ))}
+
+           {dishes.length > 0 && (
+            <Text style={{
+              color: '#888',
+              fontSize: 13,
+              fontStyle: 'italic',
+              textAlign: 'center',
+              marginVertical: 5
+            }}>
+              📌 שים לב: הזיהוי לא תמיד מדויק ב־100%.
+              אפשר לתקן או להשלים ידנית אם משהו חסר או לא נכון.
+            </Text>
+          )}
 
       <TouchableOpacity style={styles.floatingBtn} onPress={addDish}>
         <Text style={styles.btnText}>➕ הוסף מנה</Text>
@@ -282,6 +314,10 @@ export default function App() {
           </View>
         </View>
       )}
+      <TouchableOpacity style={styles.resetBtn} onPress={resetAll}>
+        <Text style={styles.btnText}>🔄 אפס הכל</Text>
+      </TouchableOpacity>
+
     </ScrollView>
   );
 }
@@ -372,5 +408,12 @@ const styles = StyleSheet.create({
     color: '#555',
     marginBottom: 2,
     writingDirection: 'rtl',
+  },
+  resetBtn: {
+    backgroundColor: '#9e9e9e',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 5,
   },
 });
