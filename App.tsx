@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image, I18nManager, } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
 import dishesList from './Dishes.json';
-import PhotoManipulator from 'react-native-photo-manipulator';
+import { Alert, ActivityIndicator } from 'react-native';
+
 
 const dishDictionary: string[] = dishesList as string[];
 
@@ -22,6 +23,7 @@ export default function App() {
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [tipPercent, setTipPercent] = useState<number>(0);
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const [totals, setTotals] = useState<
     { [guest: string]: { subtotal: number; total: number } }
@@ -73,6 +75,8 @@ export default function App() {
 
 
   const captureAndSend = async () => {
+    setLoading(true);
+    try{
     const result = await launchCamera({ mediaType: 'photo', quality: 0.7 });
     if (!result.assets || result.assets.length === 0) return;
     const uri = result.assets[0].uri;
@@ -85,7 +89,7 @@ export default function App() {
       name: 'receipt.jpg',
     });
 
-    const response = await fetch('http://192.168.1.36:3000/upload', {
+    const response = await fetch('https://splitbill-40v0.onrender.com/upload', {
       method: 'POST',
       body: formData,
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -101,7 +105,13 @@ export default function App() {
 
 
     setDishes(parseReceiptDishes(hebLines, numLines, dishDictionary));
-  };
+  }catch (err){   console.error(err);
+    Alert.alert('Something went wrong with OCR!');
+  } finally{
+    setLoading(false);
+  }
+
+  }
 
   const parseReceiptDishes = (hebLines: string[], numLines: string[], dishesJson: string[]): Dish[] => {
     const dishes: Dish[] = [];
@@ -169,6 +179,7 @@ export default function App() {
       </TouchableOpacity>
       {imageUri && <Image source={{ uri: imageUri }} style={styles.imagePreview} />}
 
+
       {/* Tip */}
       <Text style={styles.label}>טיפ (%):</Text>
       <TextInput
@@ -177,6 +188,7 @@ export default function App() {
         onChangeText={text => setTipPercent(Number(text))}
         style={styles.input}
       />
+      {loading && <ActivityIndicator size="large" color="#0000ff" />}
 
       {/* Dishes */}
       <Text style={[styles.label, { marginTop: 15 }]}>מנות:</Text>
