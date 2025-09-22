@@ -10,38 +10,41 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 const upload = multer({ dest: 'uploads/' });
 
-// יוצרים workers קבועים פעם אחת
-let hebWorker, engWorker;
+let worker;
+
+
 (async () => {
-  hebWorker = await createWorker('heb');
-  engWorker = await createWorker('eng');
-  console.log('Workers loaded');
+  worker = createWorker({
+    logger: m => console.log(m), 
+  });
+  await worker.load();
+  await worker.loadLanguage('heb+eng');
+  await worker.initialize('heb+eng');
+  console.log('Worker loaded');
 })();
+
+
+let ocrQueue = Promise.resolve();
 
 app.post('/upload', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send({ error: 'No file uploaded' });
 
-  try {
-    const filePath = req.file.path;
+  const filePath = req.file.path;
 
-
-    const { data: { text: hebText } } = await hebWorker.recognize(filePath);
-
-   
-    const { data: { text: numText } } = await engWorker.recognize(filePath);
-
-    await fs.unlink(filePath);
-
-    res.json({ hebText, numText });
-  } catch (err) {
-    console.error(err);
-    if (req.file) {
-      try { await fs.unlink(req.file.path); } catch (_) {}
+ 
+  ocrQueue = ocrQueue.then(async () => {
+    try {
+      const { data: { text } } = await worker.recognize(filePath);
+      await fs.unlink(filePath);
+      res.json({ text });
+    } catch (err) {
+      console.error(err);
+      await fs.unlink(filePath).catch(() => {});
+      res.status(500).send({ error: 'OCR failed' });
     }
-    res.status(500).send({ error: 'OCR failed' });
-  }
+  });
 });
-
+  
 app.listen(port, () =>
   console.log(`Server running at http://localhost:${port}`)
 );

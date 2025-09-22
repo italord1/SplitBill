@@ -76,62 +76,53 @@ export default function App() {
 
   const captureAndSend = async () => {
     setLoading(true);
-    try{
-    const result = await launchCamera({ mediaType: 'photo', quality: 0.7 });
-    if (!result.assets || result.assets.length === 0) return;
-    const uri = result.assets[0].uri;
-    setImageUri(uri ?? null);
+    try {
+      const result = await launchCamera({ mediaType: 'photo', quality: 0.7 });
+      if (!result.assets || result.assets.length === 0) return;
+      const uri = result.assets[0].uri;
+      setImageUri(uri ?? null);
 
-    const formData = new FormData();
-    formData.append('image', {
-      uri,
-      type: 'image/jpeg',
-      name: 'receipt.jpg',
-    });
+      const formData = new FormData();
+      formData.append('image', {
+        uri,
+        type: 'image/jpeg',
+        name: 'receipt.jpg',
+      });
 
-    const response = await fetch('https://splitbill-40v0.onrender.com/upload', {
-      method: 'POST',
-      body: formData,
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+      const response = await fetch('https://splitbill-40v0.onrender.com/upload', {
+        method: 'POST',
+        body: formData,
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    const hebLines = data.hebText.split('\n');
-    const numLines = data.numText.split('\n');
+     
+      const allLines: string[] = data.text.split('\n').map((line: string) => line.trim()).filter((line: string) => line.length > 0);
 
-    console.log("HEB:", hebLines);
-    console.log("NUM:", numLines);
+      console.log("ALL LINES:", allLines);
 
+      setDishes(parseReceiptDishes(allLines, dishDictionary));
 
-    setDishes(parseReceiptDishes(hebLines, numLines, dishDictionary));
-  }catch (err){   console.error(err);
-    Alert.alert('Something went wrong with OCR!');
-  } finally{
-    setLoading(false);
-  }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Something went wrong with OCR!');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  }
-
-  const parseReceiptDishes = (hebLines: string[], numLines: string[], dishesJson: string[]): Dish[] => {
+  const parseReceiptDishes = (lines: string[], dishesJson: string[]): Dish[] => {
     const dishes: Dish[] = [];
 
-    for (let i = 0; i < hebLines.length; i++) {
-      const line = hebLines[i].trim();
-      if (!line) continue;
-
+    for (let line of lines) {
       const foundDish = dishesJson.find(dish => line.includes(dish));
       if (foundDish) {
-
+        
         let price = 0;
-
-       
-        if (i < numLines.length) {
-          const matches = numLines[i].match(/\d+/g); 
-          if (matches && matches.length > 0) {
-          
-            price = Math.max(...matches.map(n => parseInt(n, 10)));
-          }
+        const matches = line.match(/\d+/g);
+        if (matches && matches.length > 0) {
+          price = Math.max(...matches.map(n => parseInt(n, 10)));
         }
 
         dishes.push({
